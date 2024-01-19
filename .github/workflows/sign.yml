@@ -1,0 +1,134 @@
+name: Codesign Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      asset:
+        required: true
+        type: string
+      sha256:
+        required: true
+        type: string
+
+jobs:
+  sign:
+    runs-on: macos-12
+    permissions:
+      contents: write
+    steps:
+      - name: Parse release information
+        id: parser
+        run: |
+          _asset_url="https://github.com/ungoogled-software/ungoogled-chromium-macos/releases/download/${{ inputs.asset }}"
+          _release_tag_version=$(echo "${{ inputs.asset }}" | cut -d'/' -f1)
+          
+          if [[ "${_release_tag_version}" =~ ^([^-]+)-([^_]+).([^_]+)_([^_]+)__([^ ]+).*$ ]]; then
+              _chromium_version="${BASH_REMATCH[1]}"
+              _ungoogled_revision="${BASH_REMATCH[2]}"
+              _package_revision="${BASH_REMATCH[3]}"
+              _cpu="${BASH_REMATCH[4]}"
+              _epoch_finish="${BASH_REMATCH[5]}"
+          else
+              exit 1
+          fi
+          
+          echo "chromium_version=$_chromium_version"
+          echo "ungoogled_revision=$_ungoogled_revision"
+          echo "package_revision=$_package_revision"
+          echo "cpu=$_cpu"
+          echo "epoch_finish=$_epoch_finish"
+
+          echo "_asset_url=$_asset_url" >> $GITHUB_ENV
+          echo "_release_tag_version=$_release_tag_version" >> $GITHUB_ENV
+
+          echo "_file_name=ungoogled-chromium_${_chromium_version}-${_ungoogled_revision}.${_package_revision}_${_cpu}-macos-signed.dmg" >> $GITHUB_ENV
+          echo "_ungoogled_software_release_url=https://github.com/ungoogled-software/ungoogled-chromium-macos/releases/tag/${_release_tag_version}" >> $GITHUB_ENV
+      - name: Check for existing release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            
+            if (releases.data.find(release => release.tag_name === "${{ env._release_tag_version }}")) {
+              core.setFailed("Release already exists");
+            }
+      - uses: actions/checkout@v4
+      - name: Download release
+        run: wget -O ungoogled-chromium.dmg ${{ env._asset_url }}
+      - name: Verify release hash
+        run: shasum -a 256 ungoogled-chromium.dmg | cut -f1 -d' ' | grep "${{ inputs.sha256 }}"
+      - name: Mount Disk Image
+        run: hdiutil attach ungoogled-chromium.dmg
+      - name: Copy Application
+        run: cp -R /Volumes/Chromium/Chromium.app /Applications
+      - name: Unmount Disk Image
+        run: hdiutil detach /Volumes/Chromium
+      - name: Clear Finder attributes
+        run: xattr -cr /Applications/Chromium.app
+      - name: Prepare Keychain for signing
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.PROD_MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.PROD_MACOS_CERTIFICATE_PWD }}
+          MACOS_CI_KEYCHAIN_PWD: ${{ secrets.PROD_MACOS_CI_KEYCHAIN_PWD }}
+        run: |
+          echo $MACOS_CERTIFICATE | base64 --decode > certificate.p12
+
+          security create-keychain -p "$MACOS_CI_KEYCHAIN_PWD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$MACOS_CI_KEYCHAIN_PWD" build.keychain
+          security import certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MACOS_CI_KEYCHAIN_PWD" build.keychain
+      - name: Re-sign application
+        env:
+          MACOS_CERTIFICATE_NAME: ${{ secrets.PROD_MACOS_CERTIFICATE_NAME }}
+        run: |
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier chrome_crashpad_handler /Applications/Chromium.app/Contents/Frameworks/Chromium\ Framework.framework/Helpers/chrome_crashpad_handler
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier io.dekker.ungoogled-chromium.helper --options restrict,library,runtime,kill /Applications/Chromium.app/Contents/Frameworks/Chromium\ Framework.framework/Helpers/Chromium\ Helper.app
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier io.dekker.ungoogled-chromium.helper.renderer --options restrict,kill,runtime --entitlements ./entitlements/helper-renderer-entitlements.plist /Applications/Chromium.app/Contents/Frameworks/Chromium\ Framework.framework/Helpers/Chromium\ Helper\ \(Renderer\).app
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier io.dekker.ungoogled-chromium.helper --options restrict,kill,runtime --entitlements ./entitlements/helper-gpu-entitlements.plist /Applications/Chromium.app/Contents/Frameworks/Chromium\ Framework.framework/Helpers/Chromium\ Helper\ \(GPU\).app
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier io.dekker.ungoogled-chromium.helper.plugin --options restrict,kill,runtime --entitlements ./entitlements/helper-plugin-entitlements.plist /Applications/Chromium.app/Contents/Frameworks/Chromium\ Framework.framework/Helpers/Chromium\ Helper\ \(Plugin\).app
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier app_mode_loader --options restrict,library,runtime,kill /Applications/Chromium.app/Contents/Frameworks/Chromium\ Framework.framework/Helpers/app_mode_loader
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier libEGL /Applications/Chromium.app/Contents/Frameworks/Chromium\ Framework.framework/Libraries/libEGL.dylib
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier io.dekker.ungoogled-chromium.framework /Applications/Chromium.app/Contents/Frameworks/Chromium\ Framework.framework
+          codesign --sign "$MACOS_CERTIFICATE_NAME" --force --timestamp --identifier io.dekker.ungoogled-chromium --options restrict,library,runtime,kill --entitlements ./entitlements/app-entitlements.plist --requirements '=designated => identifier "io.dekker.ungoogled-chromium" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */' /Applications/Chromium.app
+      - name: Verify re-signed application
+        run: codesign --verify --deep --verbose=4 /Applications/Chromium.app
+      - name: Prepare application for notarization
+        run: ditto -c -k --keepParent "/Applications/Chromium.app" "notarize.zip"
+      - name: Notarize application
+        env:
+          PROD_MACOS_NOTARIZATION_APPLE_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_APPLE_ID }}
+          PROD_MACOS_NOTARIZATION_TEAM_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_TEAM_ID }}
+          PROD_MACOS_NOTARIZATION_PWD: ${{ secrets.PROD_MACOS_NOTARIZATION_PWD }}
+        run: |
+          xcrun notarytool store-credentials "notarytool-profile" --apple-id "$PROD_MACOS_NOTARIZATION_APPLE_ID" --team-id "$PROD_MACOS_NOTARIZATION_TEAM_ID" --password "$PROD_MACOS_NOTARIZATION_PWD"
+          xcrun notarytool submit "notarize.zip" --keychain-profile "notarytool-profile" --wait
+          xcrun stapler staple "/Applications/Chromium.app"
+      - name: Create Disk Image
+        run: |
+          mkdir -p release_assets
+          .github/utilities/pkg-dmg --sourcefile --source /Applications/Chromium.app --target "release_assets/$_file_name" --volname Chromium --symlink /Applications:/Applications --format UDBZ --verbosity 2
+      - name: Prepare release notes
+        run: |
+          echo -e "md5: \nsha1: \nsha256: " | tee ./hash_types.txt
+          { md5 -q "release_assets/$_file_name" ; shasum "release_assets/$_file_name" | cut -f1 -d' ' ; shasum -a 256 "release_assets/$_file_name" | cut -f1 -d' ' ; } | tee ./sums.txt
+          _hash_md=$(paste ./hash_types.txt ./sums.txt | awk '{print $1 " " $2}')
+          
+          _gh_run_href="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          
+          printf '[Hashes](https://en.wikipedia.org/wiki/Cryptographic_hash_function) for the disk image `%s`: \n' "$_file_name" | tee ./github_release_text.md
+          printf '\n```\n%s\n```\n' "$_hash_md" | tee -a ./github_release_text.md
+          printf 'See [this GitHub Actions Run](%s) for the [Workflow file](%s/workflow) used, and [this ungoogled-software-macos release tag](%s) for the Build that this Release is based on.\n' "$_gh_run_href" "$_gh_run_href" "${{ env._ungoogled_software_release_url }}" | tee -a ./github_release_text.md
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ env._release_tag_version }} signed macOS ungoogled-chromium binary
+          tag_name: ${{ env._release_tag_version }}
+          body_path: ./github_release_text.md
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: ./release_assets/${{ env._file_name }}
