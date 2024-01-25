@@ -23,28 +23,28 @@ jobs:
         with:
           script: |
             function parseHashesFromRelease(input) {
-              const parsed = {};
+              const parsed = {}
 
-              const regex = /disk image `(?<name>ungoogled-chromium_.*)`: \n\n```\nmd5: (?<md5>.*)\nsha1: (?<sha1>.*)\nsha256: (?<sha256>.*)\n```/g;
+              const regex = /disk image `(?<name>ungoogled-chromium_.*)`: \n\n```\nmd5: (?<md5>.*)\nsha1: (?<sha1>.*)\nsha256: (?<sha256>.*)\n```/g
               let m = []
 
               while ((m = regex.exec(input)) !== null) {
                 if (m.index === regex.lastIndex) {
-                  regex.lastIndex++;
+                  regex.lastIndex++
                 }
 
-                const { name, ...hashes } = m.groups;
-                parsed[name] = hashes;
+                const { name, ...hashes } = m.groups
+                parsed[name] = hashes
               }
 
-              return parsed;
+              return parsed
             }
 
             async function getSignedReleases() {
               const releases = await github.rest.repos.listReleases({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-              });
+              })
 
               return releases.data
                 .map(release => release.tag_name)
@@ -61,7 +61,7 @@ jobs:
                 .filter(release => release.assets.some(asset => asset.browser_download_url.endsWith('.dmg')))
 
               return parsableReleases.map(release => {
-                const hashMap = parseHashesFromRelease(release.body);
+                const hashMap = parseHashesFromRelease(release.body)
 
                 const assets = release.assets
                   .filter(asset => asset.browser_download_url.endsWith('.dmg'))
@@ -99,7 +99,7 @@ jobs:
               const releases = await github.rest.repos.listReleases({
                 owner: 'ungoogled-software',
                 repo: 'ungoogled-chromium-macos'
-              });
+              })
 
               return await parseLatestReleases(releases.data)
             }
@@ -107,26 +107,26 @@ jobs:
             async function findSignableRelease() {
               const unsignedReleases = await getUnsignedReleases()
               if (unsignedReleases.length === 0) {
-                return null;
+                return null
               }
 
               const signedReleases = await getSignedReleases()
 
               // We'll only want to sign the latest release, as otherwise we'll end up signing
               // years worth of unsigned releases that nobody should be using anyway.
-              const latestUnsignedRelease = unsignedReleases[0];
+              const latestUnsignedRelease = unsignedReleases[0]
 
               if (signedReleases.includes(latestUnsignedRelease.tag)) {
-                return null;
+                return null
               }
 
-              return latestUnsignedRelease;
+              return latestUnsignedRelease
             }
 
-            const release = await findSignableRelease();
+            const release = await findSignableRelease()
             if (release == null) {
               core.notice("No new releases to sign")
-              return;
+              return
             }
 
             core.setOutput('tag', release.tag)
@@ -263,3 +263,17 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: true
           files: release_assets/*-macos-signed.dmg
+      - name: Trigger claudiodekker/ungoogled-chromium-binaries update
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.UNGOOGLED_CHROMIUM_BINARIES_PAT }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'claudiodekker',
+              repo: 'ungoogled-chromium-binaries',
+              ref: 'updater-actions',
+              workflow_id: 'update.yml',
+              inputs: {
+                tag: '${{ needs.check.outputs.tag }}',
+              },
+            })
