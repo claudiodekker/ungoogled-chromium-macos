@@ -46,9 +46,7 @@ jobs:
                 repo: context.repo.repo,
               })
 
-              return releases.data
-                .map(release => release.tag_name)
-                .filter(tag => tag.includes('__'))
+              return releases.data.map(release => release.tag_name)
             }
 
             async function parseLatestReleases(apiReleasesResponseJson) {
@@ -251,12 +249,13 @@ jobs:
           _gh_run_href="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           _ungoogled_software_release_url="https://github.com/ungoogled-software/ungoogled-chromium-macos/releases/tag/${{ needs.check.outputs.tag }}"
 
+          printf '## Ungoogled-Chromium macOS %s (Signed)\n' "${{ needs.check.outputs.tag }}" > github_release_text.md
           find ./hash-notes -type f -exec cat {} \; -exec echo \; >> github_release_text.md
           printf 'See [this GitHub Actions Run](%s) for the [Workflow file](%s/workflow) used, and [this ungoogled-software-macos release tag](%s) for the Build that this Release is based on.\n' "$_gh_run_href" "$_gh_run_href" "$_ungoogled_software_release_url" | tee -a ./github_release_text.md
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: Ungoogled-Chromium macOS ${{ needs.check.outputs.tag }} (Signed)
+          name: ${{ needs.check.outputs.tag }}
           tag_name: ${{ needs.check.outputs.tag }}
           body_path: github_release_text.md
           draft: false
