@@ -1,4 +1,4 @@
-name: Check & Codesign new releases
+name: Check & Codesign new releases (TESTING)
 
 on:
   workflow_dispatch:
@@ -115,7 +115,7 @@ jobs:
               const latestUnsignedRelease = unsignedReleases[0]
 
               if (signedReleases.includes(latestUnsignedRelease.tag)) {
-                return null
+                // return null
               }
 
               return latestUnsignedRelease
@@ -231,58 +231,3 @@ jobs:
         with:
           name: "hash-notes-${{ matrix.assets.sha256 }}"
           path: "hash-notes-${{ matrix.assets.sha256 }}.md"
-
-  publish:
-    if: needs.check.outputs.tag != ''
-    needs: [check, sign]
-    runs-on: ubuntu-latest
-    name: "Publish release - ${{ needs.check.outputs.tag }}"
-
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download signed releases
-        uses: actions/download-artifact@v4
-        with:
-          pattern: "*-macos-signed.dmg"
-          path: release_assets
-          merge-multiple: true
-      - name: Download hash notes
-        uses: actions/download-artifact@v4
-        with:
-          pattern: hash-notes-*
-          path: hash-notes
-          merge-multiple: true
-      - name: Prepare release notes
-        run: |
-          _gh_run_href="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          _ungoogled_software_release_url="https://github.com/ungoogled-software/ungoogled-chromium-macos/releases/tag/${{ needs.check.outputs.tag }}"
-
-          printf '## Ungoogled-Chromium macOS %s (Signed)\n' "${{ needs.check.outputs.tag }}" > github_release_text.md
-          find ./hash-notes -type f -exec cat {} \; -exec echo \; >> github_release_text.md
-          printf 'See [this GitHub Actions Run](%s) for the [Workflow file](%s/workflow) used, and [this ungoogled-software-macos release tag](%s) for the Build that this Release is based on.\n' "$_gh_run_href" "$_gh_run_href" "$_ungoogled_software_release_url" | tee -a ./github_release_text.md
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          name: ${{ needs.check.outputs.tag }}
-          tag_name: ${{ needs.check.outputs.tag }}
-          body_path: github_release_text.md
-          draft: false
-          prerelease: false
-          fail_on_unmatched_files: true
-          files: release_assets/*-macos-signed.dmg
-      - name: Trigger claudiodekker/ungoogled-chromium-binaries update
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.UNGOOGLED_CHROMIUM_BINARIES_PAT }}
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: 'claudiodekker',
-              repo: 'ungoogled-chromium-binaries',
-              ref: 'updater-actions',
-              workflow_id: 'update.yml',
-              inputs: {
-                tag: '${{ needs.check.outputs.tag }}',
-              },
-            })
