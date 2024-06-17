@@ -1,20 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-	<key>com.apple.security.device.audio-input</key>
-	<true/>
-	<key>com.apple.security.device.bluetooth</key>
-	<true/>
-	<key>com.apple.security.device.camera</key>
-	<true/>
-	<key>com.apple.security.device.print</key>
-	<true/>
-	<key>com.apple.security.device.usb</key>
-	<true/>
-	<key>com.apple.security.personal-information.location</key>
-	<true/>
-	<key>com.apple.security.personal-information.photos-library</key>
-	<true/>
-</dict>
+    <dict>
+        <!-- This file is a merge of the Chromium source `app-entitlements-chrome.plist` & `app-entitlements.plist` -->
+        <!-- It should (in theory) match the signed entitlements the primary Chrome.app build. -->
+        <key>com.apple.application-identifier</key>
+        <string>${CHROMIUM_TEAM_ID}.${CHROMIUM_BUNDLE_ID}</string>
+        <key>com.apple.developer.associated-domains.applinks.read-write</key>
+        <true/>
+        <key>com.apple.developer.web-browser.public-key-credential</key>
+        <true/>
+        <key>com.apple.security.device.audio-input</key>
+        <true/>
+        <key>com.apple.security.device.bluetooth</key>
+        <true/>
+        <key>com.apple.security.device.camera</key>
+        <true/>
+        <key>com.apple.security.device.print</key>
+        <true/>
+        <key>com.apple.security.device.usb</key>
+        <true/>
+        <key>com.apple.security.personal-information.location</key>
+        <true/>
+        <key>com.apple.security.personal-information.photos-library</key>
+        <true/>
+        <key>keychain-access-groups</key>
+        <array>
+            <string>${CHROMIUM_TEAM_ID}.com.google.common.folsom</string>
+            <string>${CHROMIUM_TEAM_ID}.${CHROMIUM_BUNDLE_ID}.devicetrust</string>
+            <string>${CHROMIUM_TEAM_ID}.${CHROMIUM_BUNDLE_ID}.unexportable-keys</string>
+            <string>${CHROMIUM_TEAM_ID}.${CHROMIUM_BUNDLE_ID}.webauthn</string>
+            <string>${CHROMIUM_TEAM_ID}.${CHROMIUM_BUNDLE_ID}.webauthn-uvk</string>
+        </array>
+    </dict>
 </plist>
