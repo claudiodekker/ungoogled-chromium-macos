@@ -2,10 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <dict>
-        <!-- This file is a merge of the Chromium source `app-entitlements-chrome.plist` & `app-entitlements.plist` -->
-        <!-- It should (in theory) match the signed entitlements the primary Chrome.app build. -->
-        <key>com.apple.application-identifier</key>
-        <string>${CHROMIUM_TEAM_ID}.${CHROMIUM_BUNDLE_ID}</string>
         <key>com.apple.developer.associated-domains.applinks.read-write</key>
         <true/>
         <key>com.apple.developer.web-browser.public-key-credential</key>
