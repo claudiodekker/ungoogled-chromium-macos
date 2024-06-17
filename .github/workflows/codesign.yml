@@ -172,7 +172,7 @@ jobs:
       - name: Prepare App Entitlements for signing
         env:
           CHROMIUM_TEAM_ID: ${{ secrets.PROD_MACOS_NOTARIZATION_TEAM_ID }}
-          CHROMIUM_BUNDLE_ID: org.chromium.Chromium
+          CHROMIUM_BUNDLE_ID: io.dekker.ungoogled-chromium
         run: |
             sed -i '' "s/\${CHROMIUM_TEAM_ID}/${CHROMIUM_TEAM_ID}/g" ./entitlements/app-entitlements.plist
             sed -i '' "s/\${CHROMIUM_BUNDLE_ID}/${CHROMIUM_BUNDLE_ID}/g" ./entitlements/app-entitlements.plist
