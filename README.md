@@ -2,6 +2,9 @@
 
 This repository hosts [code-signed and notarized builds](https://support.apple.com/guide/security/app-code-signing-process-sec3ad8e6e53/web) of [ungoogled-software/ungoogled-chromium-macos](https://github.com/ungoogled-software/ungoogled-chromium-macos).
 
+> [!WARNING]
+> As of [Ungoogled-Chromium macOS 130.0.6723.116-1.1](https://github.com/ungoogled-software/ungoogled-chromium-macos/releases/tag/130.0.6723.116-1.1), the official Ungoogled Chromium repository is now signing builds using Apple Developer ID certificate `Developer ID Application: Qian Qian (B9A88FL5XJ)`. Because of this, this repository is now deprecated and archived. You can find the latest code-signed builds here: https://github.com/ungoogled-software/ungoogled-chromium-macos/releases
+
 ## What's the benefit of these notarized builds?
 
 Your version of macOS will be able to verify that `Chromium.app` hasn't been tampered with, that to Apple's knowledge the application is safe to run, and that the signer of the application (in this case, me / this repository) has stated as such.
